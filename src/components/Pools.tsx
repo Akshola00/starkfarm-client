@@ -30,6 +30,10 @@ import {
   sortAtom,
 } from '@/store/protocols';
 import YieldCard, { HeaderSorter } from './YieldCard';
+import { LendingSpace } from '@/store/lending.base';
+import { StrkLendingIncentivesAtom } from '@/store/pools';
+import { AtomWithQueryResult } from 'jotai-tanstack-query';
+import { hashstack } from '@/store/hashstack.store';
 
 export default function Pools() {
   const allPools = useAtomValue(allPoolsAtomUnSorted);
@@ -100,6 +104,83 @@ export default function Pools() {
       setSort(new_sort);
     }
   };
+  const poolsData = useAtomValue(
+    StrkLendingIncentivesAtom,
+  ) as AtomWithQueryResult<LendingSpace.MyBaseAprDoc[], Error>;
+
+  const poolsInfoAPY = () => {
+    try {
+      if (poolsData?.data) {
+        console.log('POOLS DATA: ', poolsData.data);
+        const incentiveDataKey = Object.keys(poolsData.data).find((key) =>
+          key.includes('Hashstack'),
+        );
+
+        if (!incentiveDataKey) {
+          throw new Error('Incentive Data Key not found in poolsData');
+        }
+
+        const poolInfoList = hashstack._computePoolsInfo(poolsData.data);
+        // console.log('Data passed to _computePoolsInfo:', poolInfoList);
+        // console.log('IncentiveDataKey:', incentiveDataKey);
+
+        poolInfoList.forEach((pool) => {
+          // console.log('Lopped POOL', pool);
+
+          const protocol = {
+            name: pool.protocol.name,
+            link: pool.protocol.link,
+            logo: pool.protocol.logo,
+          };
+
+          const commonVaultFilter = (poolName: string) =>
+            ['USDC', 'USDT'].includes(poolName);
+
+          console.log('Calling computePoolsInfo with:', {
+            pool,
+            incentiveDataKey,
+            protocol,
+            commonVaultFilter,
+          });
+          // console.log('Pool Names:', Object.keys(pool));
+          // console.log('Filter Function:', commonVaultFilter);
+
+          const computedPools = LendingSpace.computePoolsInfo(
+            pool,
+            incentiveDataKey,
+            protocol,
+            commonVaultFilter,
+          );
+          // console.log('COMMON VAULT FILTER: ', commonVaultFilter);
+
+          // TESTING getBaseAPY (error coming from lending base)
+          // const baseApy = LendingSpace.getBaseAPY(pool, poolsData);
+          // console.log('Base APY for pool:', pool.pool.name, ':', baseApy);
+
+          if (computedPools && computedPools.length > 0) {
+            computedPools.forEach((computedPool) => {
+              console.log('Processing computedPool:', computedPool);
+
+              // Call getBaseAPY for each pool
+              const baseApy = LendingSpace.getBaseAPY(computedPool, poolsData);
+              console.log(
+                'Base APY for pool:',
+                computedPool.pool.name,
+                ':',
+                baseApy,
+              );
+            });
+          } else {
+            console.log('No computed pools returned');
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error in poolsInfoAPY:', error);
+    }
+  };
+  // poolsInfoAPY();
+
   return (
     <Box float="left" width={'100%'}>
       <ProtocolFilters />
@@ -214,6 +295,7 @@ export default function Pools() {
           </Stack>
         )}
       </Container>
+      {/* <PoolsInfoComponent /> */}
     </Box>
   );
 }
