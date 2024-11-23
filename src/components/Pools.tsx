@@ -126,43 +126,43 @@ export default function Pools() {
 
         poolInfoList.forEach((pool) => {
           // console.log('Lopped POOL', pool);
-
-          const protocol = {
-            name: pool.protocol.name,
-            link: pool.protocol.link,
-            logo: pool.protocol.logo,
+          const formattedData = {
+            // The outer object needs an incentive key
+            hashstackIncentives: {
+              // Then pool names as keys with arrays of data
+              [pool.pool.name]: [
+                {
+                  strk_grant_apr_nrs: pool.apr,
+                  supply_usd: pool.tvl,
+                },
+              ],
+            },
           };
 
-          const commonVaultFilter = (poolName: string) =>
-            ['USDC', 'USDT'].includes(poolName);
+          const commonVaultFilter = (poolName: string) => {
+            console.log('Filtering pool:', poolName);
+            return poolName === pool.pool.name;
+          };
 
           console.log('Calling computePoolsInfo with:', {
-            pool,
-            incentiveDataKey,
-            protocol,
-            commonVaultFilter,
+            data: formattedData,
+            incentiveDataKey: pool.pool.name,
+            protocol: pool.protocol,
+            poolName: pool.pool.name,
           });
-          // console.log('Pool Names:', Object.keys(pool));
-          // console.log('Filter Function:', commonVaultFilter);
 
           const computedPools = LendingSpace.computePoolsInfo(
-            pool,
-            incentiveDataKey,
-            protocol,
+            formattedData,
+            pool.pool.name,
+            pool.protocol,
             commonVaultFilter,
           );
-          // console.log('COMMON VAULT FILTER: ', commonVaultFilter);
 
-          // TESTING getBaseAPY (error coming from lending base)
-          // const baseApy = LendingSpace.getBaseAPY(pool, poolsData);
-          // console.log('Base APY for pool:', pool.pool.name, ':', baseApy);
+          //  console.log('Computed Pools:', computedPools);
 
           if (computedPools && computedPools.length > 0) {
             computedPools.forEach((computedPool) => {
-              console.log('Processing computedPool:', computedPool);
-
-              // Call getBaseAPY for each pool
-              const baseApy = LendingSpace.getBaseAPY(computedPool, poolsData);
+              const baseApy = hashstack.getBaseAPY(computedPool, poolsData);
               console.log(
                 'Base APY for pool:',
                 computedPool.pool.name,
