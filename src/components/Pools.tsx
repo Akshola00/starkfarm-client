@@ -30,6 +30,10 @@ import {
   sortAtom,
 } from '@/store/protocols';
 import YieldCard, { HeaderSorter } from './YieldCard';
+import { LendingSpace } from '@/store/lending.base';
+import { StrkLendingIncentivesAtom } from '@/store/pools';
+import { AtomWithQueryResult } from 'jotai-tanstack-query';
+import { hashstack } from '@/store/hashstack.store';
 
 export default function Pools() {
   const allPools = useAtomValue(allPoolsAtomUnSorted);
@@ -100,6 +104,83 @@ export default function Pools() {
       setSort(new_sort);
     }
   };
+  const poolsData = useAtomValue(
+    StrkLendingIncentivesAtom,
+  ) as AtomWithQueryResult<LendingSpace.MyBaseAprDoc[], Error>;
+
+  const poolsInfoAPY = () => {
+    try {
+      if (poolsData?.data) {
+        console.log('POOLS DATA: ', poolsData.data);
+        const incentiveDataKey = Object.keys(poolsData.data).find((key) =>
+          key.includes('Hashstack'),
+        );
+
+        if (!incentiveDataKey) {
+          throw new Error('Incentive Data Key not found in poolsData');
+        }
+
+        const poolInfoList = hashstack._computePoolsInfo(poolsData.data);
+        // console.log('Data passed to _computePoolsInfo:', poolInfoList);
+        // console.log('IncentiveDataKey:', incentiveDataKey);
+
+        poolInfoList.forEach((pool) => {
+          // console.log('Lopped POOL', pool);
+          const formattedData = {
+            // The outer object needs an incentive key
+            hashstackIncentives: {
+              // Then pool names as keys with arrays of data
+              [pool.pool.name]: [
+                {
+                  strk_grant_apr_nrs: pool.apr,
+                  supply_usd: pool.tvl,
+                },
+              ],
+            },
+          };
+
+          const commonVaultFilter = (poolName: string) => {
+            console.log('Filtering pool:', poolName);
+            return poolName === pool.pool.name;
+          };
+
+          console.log('Calling computePoolsInfo with:', {
+            data: formattedData,
+            incentiveDataKey: pool.pool.name,
+            protocol: pool.protocol,
+            poolName: pool.pool.name,
+          });
+
+          const computedPools = LendingSpace.computePoolsInfo(
+            formattedData,
+            pool.pool.name,
+            pool.protocol,
+            commonVaultFilter,
+          );
+
+          //  console.log('Computed Pools:', computedPools);
+
+          if (computedPools && computedPools.length > 0) {
+            computedPools.forEach((computedPool) => {
+              const baseApy = hashstack.getBaseAPY(computedPool, poolsData);
+              console.log(
+                'Base APY for pool:',
+                computedPool.pool.name,
+                ':',
+                baseApy,
+              );
+            });
+          } else {
+            console.log('No computed pools returned');
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error in poolsInfoAPY:', error);
+    }
+  };
+  // poolsInfoAPY();
+
   return (
     <Box float="left" width={'100%'}>
       <ProtocolFilters />
@@ -214,6 +295,7 @@ export default function Pools() {
           </Stack>
         )}
       </Container>
+      {/* <PoolsInfoComponent /> */}
     </Box>
   );
 }
